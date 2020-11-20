@@ -17,9 +17,9 @@ bool validaCntHilos(int ch);
 
 //Definición de las funciones
 int regla30(string secuencia);
-void sim1D(queue < vector<int> > cola, int hilo, int tam_Automatas, int tam_Equipos, int cant_Iter);
-int cuentaVecinos(vector<int>& vectorPrincipal, int tam_Automatas, int fil, int col);
-void sim2d(int hilo, int tam_Automatas, int cant_Iter);
+void sim1D(queue < vector<int> > & cola, int hilo, int tam_Automatas, int tam_Equipos, int cant_Iter);
+int cuentaVecinos(vector<vector <int>>& matrizPrincipal, int tam_Automatas, int fil, int col);
+void sim2d(queue <vector<int>> & cola, int hilo, int cant_hilos, int tam_Automatas, int cant_Iter);
 
 int main() {
     cout << regla30("000") << endl;
@@ -48,7 +48,7 @@ int regla30(string secuencia){
     return codificado;
 }
 
-void sim1D(queue< vector<int> > cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter){
+void sim1D(queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter){
 	vector<int> bits_principal(cant_bits, 0);
 	bits_principal[cant_bits / 2] = 1;
 	int bitsXhilo = cant_bits / cant_hilos;
@@ -80,3 +80,24 @@ void sim1D(queue< vector<int> > cola, int hilo, int cant_bits, int cant_hilos, i
 	}
 }
 
+int cuentaVecinos(vector<vector <int>>& matrizPrincipal, int tam_Automatas, int fil, int col){
+	int cantidadVecinos = 0;
+	for(int i = fil-1; i < fil+2; i++){
+		for(int j = col-1; j < col+2; j++){
+			cantidadVecinos += matrizPrincipal[i%tam_Automatas][j%tam_Automatas];
+		}
+	}
+	return cantidadVecinos - matrizPrincipal[fil][col];
+}
+
+void sim2D(queue <vector<int>> & cola, int hilo, int cant_hilos, int tam_Automatas, int cant_Iter){
+	int cantColumnas = tam_Automatas / cant_hilos;
+	int limite_inf = hilo * cantColumnas;
+	int limite_sup = (hilo + 1) * cantColumnas;
+	vector<vector <int>> matriz;
+	int cantidad_estados_1D = 0;
+	bool colaVacia = cola.empty();
+	int iter_realizadas = 0;
+	vector<int> fila0;
+
+}
