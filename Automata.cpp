@@ -10,6 +10,7 @@ PROFESOR: ALAN CALDERON CASTRO
 #include <string>
 #include <vector>
 #include <queue>
+#include <fstream>
 using namespace std;
 
 
@@ -21,28 +22,40 @@ void print(T datos){
 }
 
 //Definición de las funciones
+template<typename T>string vectorToString(vector<T> & arreglo);
 int regla30(string secuencia);
 void sim1D(vector<int> & bits_principal,queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter);
 int cuentaVecinos(vector<vector <int>>& matrizPrincipal, int tam_Automatas, int fil, int col);
 void sim2d(queue <vector<int>> & cola, int hilo, int cant_hilos, int tam_Automatas, int cant_Iter);
-template<typename T>
-void imprimirVector(vector<T> vector){
+void escribirArchivo(string nombre_archivo, string hilera);
+string colaToString(queue < vector <int> > & cola);
+
+
+/*
+FUNCION: Imprime los elementos de un vector en secuencia
+ENTRADA: El vector <T> por recorrer para imprimir los datos en pantalla
+SALIDA: Los datos del vector en orden
+*/
+template<typename T> void imprimirVector(vector<T> vector){
 	for(int i = 0; i < vector.size(); i++){
 		cout << vector[i] << " ";
 	}
 	cout << endl;
 }
 
+/*
+FUNCION:
+ENTRADA:
+SALIDA:
+*/
 int main() {
 	int num_hilos = 4;
-	int cant_bits = 50;
+	int cant_bits = 70;
 	int tam_auto = 2;
 	int cant_iter = 30;
 	vector<int> bits_principal(cant_bits, 0);
 	bits_principal[cant_bits / 2] = 1;
-	
 	queue< vector<int> > cola;
-	
 
 	#pragma omp parallel num_threads(num_hilos) shared(cola, num_hilos, cant_bits, tam_auto, cant_iter, bits_principal)
 	{
@@ -51,22 +64,29 @@ int main() {
 		sim1D(bits_principal, cola, thread_id, cant_bits, num_hilos, cant_iter);
 		
 	}
-	while(!cola.empty()){
-		imprimirVector(cola.front());
-		cola.pop();
-	}
-	// for(int i = 0; i < cola.size(); i++){
-	// 	vector<int> vAux = cola.front();
-	// 	imprimirVector(vAux);
+	escribirArchivo("sim1D.txt",colaToString(cola));
+	// while(!cola.empty()){
+	// 	imprimirVector(cola.front());
+	// 	cola.pop();
 	// }
 
-	
+	return 0;
 }
 
+/*
+FUNCION: Verifica que la cantidad de hilos sea mayor que 1
+ENTRADA: Cantidad de hilos
+SALIDA: Si la cantidad de hilos es mayor que 1
+*/
 bool validaCntHilos(int ch) {
 	return ch >= 1;
 }
 
+/*
+FUNCION: Verifica una secuencia dada por un string de 3 digitos y retorna un entero '0' o '1' dependiendo del string
+ENTRADA: String secuencia que se verificara para determinar un resultado
+SALIDA: Numero entero '0' o '1' dependiendo de la secuencia dada en la entrada
+*/
 int regla30(string secuencia){
     int codificado = 0;
     if (secuencia == "111")
@@ -86,6 +106,17 @@ int regla30(string secuencia){
     return codificado;
 }
 
+/*
+FUNCION: Simulacion del primer automata unidimensional que funciona a partir del automata de Regla 30. Procesa los datos dependiendo de
+los parametros establecidos y genera el automata correspondiente, el cual es insertado en la cola cuando termina el programa. Esto, al
+ser parte del programa paralela, lo hace en multiples hilos.
+ENTRADA: Recibe el vector lleno de 0s y con 1 en el medio a partir del cual trabajara (bits_principal), 
+la cola en la que insertara el resultado final (cola), el hilo que se esta trabajando (hilo), 
+la cantidad de bits que se desean procesar (cant_bits), la cantidad de hilos con los cuales se estan trabajando (cant_hilos)
+y por ultimo la cantidad de iteraciones que se desean realizar (cant_iter)
+SALIDA: A pesar de no retornar nada (void), reduce los datos procesados por todos los hilos por medio del
+hilo maestro y prosede a empujar los resultados correspondientes en la cola.
+*/
 void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter){
 	
 	int bitsXhilo = cant_bits / cant_hilos;
@@ -116,13 +147,16 @@ void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, 
 		}
 		#pragma omp barrier
 		#pragma omp master
-		
 		cola.push(bits_principal);
 	}
-
-	
 }
 
+/*
+FUNCION: Cuenta la cantidad de vecinos alrededor de una posicion especifica en la matriz ingresada
+ENTRADA: La matriz en la que se desean analizar los vecinos, el tamaño del automata, la fila y la columna (es decir, la casilla especifica)
+que se desea analizar
+SALIDA: Retorna la cantidad de vecinos de esa casilla elegida
+*/
 int cuentaVecinos(vector<vector <int>>& matrizPrincipal, int tam_Automatas, int fil, int col){
 	int cantidadVecinos = 0;
 	for(int i = fil-1; i < fil+2; i++){
@@ -133,6 +167,11 @@ int cuentaVecinos(vector<vector <int>>& matrizPrincipal, int tam_Automatas, int 
 	return cantidadVecinos - matrizPrincipal[fil][col];
 }
 
+/*
+FUNCION: 
+ENTRADA:
+SALIDA:
+*/
 void sim2D(queue <vector<int>> & cola, int hilo, int cant_hilos, int tam_Automatas, int cant_Iter){
 	int cantColumnas = tam_Automatas / cant_hilos;
 	int limite_inf = hilo * cantColumnas;
@@ -142,5 +181,46 @@ void sim2D(queue <vector<int>> & cola, int hilo, int cant_hilos, int tam_Automat
 	bool colaVacia = cola.empty();
 	int iter_realizadas = 0;
 	vector<int> fila0;
+}
 
+/*
+FUNCION: Escribe, en una archivo de texto del nombre deseado, la hilera correspondiente.
+ENTRADA: El nombre del archivo de texto deseado. Si el nombre archivo de texto ya existe, escribe encima de este. Tambien, recibe
+la hilera que se desea escribir en tal archivo.
+SALIDA: -
+*/
+void escribirArchivo(string nombre_archivo, string hilera){
+	ofstream escritor;
+	escritor.open(nombre_archivo);
+	escritor << hilera << "\n";
+	escritor.close();
+}
+
+/*
+FUNCION: Retorna los elementos de un vector de Tipo T como un string
+ENTRADA: El vector de tipo T a ser transformado a string
+SALIDA: El string generado a partir de los elementos del vector
+*/
+template<typename T> string vectorToString(vector<T> & arreglo){
+	string hilera = "";
+	for(int i = 0; i < arreglo.size(); i++){
+		hilera += to_string(arreglo[i]);
+	}
+	return hilera;
+}
+
+/*
+FUNCION: Retorna los elementos de una cola de vectores en forma de string
+ENTRADA: La cola de vectores que desea procesar
+SALIDA: Los elementos de los vectores de la cola convertidos a string
+*/
+string colaToString(queue< vector < int> > & cola){
+	string hilera = "";
+	queue< vector<int> > copiaCola;
+	copiaCola = cola;
+	for(int i = 0; !copiaCola.empty(); i++){
+		hilera += vectorToString(copiaCola.front()) + "\n";
+		copiaCola.pop();
+	}
+	return hilera;
 }
