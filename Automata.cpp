@@ -22,7 +22,7 @@ void print(T datos){
 
 //Definición de las funciones
 int regla30(string secuencia);
-void sim1D(queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter);
+void sim1D(vector<int> & bits_principal,queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter);
 int cuentaVecinos(vector<vector <int>>& matrizPrincipal, int tam_Automatas, int fil, int col);
 void sim2d(queue <vector<int>> & cola, int hilo, int cant_hilos, int tam_Automatas, int cant_Iter);
 template<typename T>
@@ -34,29 +34,31 @@ void imprimirVector(vector<T> vector){
 }
 
 int main() {
-    cout << regla30("000") << endl;
 	int num_hilos = 4;
-	int cant_bits = 16;
+	int cant_bits = 50;
 	int tam_auto = 2;
-	int cant_iter = 6;
+	int cant_iter = 30;
+	vector<int> bits_principal(cant_bits, 0);
+	bits_principal[cant_bits / 2] = 1;
+	
 	queue< vector<int> > cola;
 	
 
-	#pragma omp parallel num_threads(num_hilos) shared(cola, num_hilos, cant_bits, tam_auto, cant_iter)
+	#pragma omp parallel num_threads(num_hilos) shared(cola, num_hilos, cant_bits, tam_auto, cant_iter, bits_principal)
 	{
 		int thread_id = omp_get_thread_num();
-		#pragma omp critical
-		sim1D(cola, thread_id, cant_bits, num_hilos, cant_iter);
-
+		
+		sim1D(bits_principal, cola, thread_id, cant_bits, num_hilos, cant_iter);
+		
 	}
-
-	for(int i = 0; i < cola.size(); i++){
-		vector<int> vAux = cola.front();
-		for(int j = 0; j < vAux.size(); j++){
-			cout << vAux[j];
-		}
-		cout << endl;
+	while(!cola.empty()){
+		imprimirVector(cola.front());
+		cola.pop();
 	}
+	// for(int i = 0; i < cola.size(); i++){
+	// 	vector<int> vAux = cola.front();
+	// 	imprimirVector(vAux);
+	// }
 
 	
 }
@@ -84,15 +86,14 @@ int regla30(string secuencia){
     return codificado;
 }
 
-void sim1D(queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter){
-	vector<int> bits_principal(cant_bits, 0);
-	bits_principal[cant_bits / 2] = 1;
+void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter){
+	
 	int bitsXhilo = cant_bits / cant_hilos;
 	int lim_inf = hilo * bitsXhilo;
 	int lim_sup = (hilo + 1) * bitsXhilo;
 
-	print("Para el hilo " + to_string(hilo) + " == [" + to_string(lim_inf) + "," + to_string(lim_sup) + "]");
-
+	//print("Para el hilo " + to_string(hilo) + " == [" + to_string(lim_inf) + "," + to_string(lim_sup) + "]");
+	#pragma omp barrier
 	for(int i = 0; i < cant_Iter; i++){
 		vector<int> bits_codificados;
 		for(int j = lim_inf; j < lim_sup; j++){
@@ -102,21 +103,24 @@ void sim1D(queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos,
 			}else if (j == cant_bits - 1){
 				secuencia = to_string(bits_principal[cant_bits - 2]) + to_string(bits_principal[cant_bits -1]) + to_string(bits_principal[0]);
 			}else{
-				secuencia = to_string(bits_principal[cant_bits - 1]) + to_string(bits_principal[j]) + to_string(bits_principal[j+1]);
+				secuencia = to_string(bits_principal[j - 1]) + to_string(bits_principal[j]) + to_string(bits_principal[j+1]);
 			}
 			bits_codificados.push_back(regla30(secuencia));
 			//print("Para la iteracion " + to_string(j) + " se tiene la secuencia " + secuencia + " = " + to_string(regla30(secuencia)));
 		}
-		imprimirVector(bits_codificados);
+		//imprimirVector(bits_codificados);
 		int cont = 0;
 		for(int i = lim_inf; cont < bits_codificados.size(); i++){
 			bits_principal[i] = bits_codificados[cont];
 			cont++;
 		}
-		//imprimirVector(bits_principal);
+		#pragma omp barrier
+		#pragma omp master
+		
+		cola.push(bits_principal);
 	}
 
-	cola.push(bits_principal);
+	
 }
 
 int cuentaVecinos(vector<vector <int>>& matrizPrincipal, int tam_Automatas, int fil, int col){
