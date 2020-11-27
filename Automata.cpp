@@ -22,13 +22,16 @@ void print(T datos){
 }
 
 //Definición de las funciones
-template<typename T>string vectorToString(vector<T> & arreglo);
 int regla30(string secuencia);
-void sim1D(vector<int> & bits_principal,queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter);
 int cuentaVecinos(vector<vector <int>>& matrizPrincipal, int tam_Automatas, int fil, int col);
-void sim2d(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter);
+void sim1D(vector<int> & bits_principal,queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter);
+void sim2d(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter, int & done_sending);
 void escribirArchivo(string nombre_archivo, string hilera);
+void limpiarArchivo(string nombre_archivo);
 string colaToString(queue < vector <int> > & cola);
+string matrizToString(vector < vector <int> > & matriz);
+template<typename T>string vectorToString(vector<T> & arreglo);
+vector< vector <int> > & llenarMatriz(vector<vector <int>> & matriz, int filas, int columnas, int dato);
 
 
 /*
@@ -49,25 +52,37 @@ ENTRADA:
 SALIDA:
 */
 int main() {
-	int num_hilos = 4;
-	int cant_bits = 1000;
+	int cant_hilos = 4;
+	int cant_bits = 100;
 	int tam_auto = 2;
-	int cant_iter = 1000;
+	int cant_iter = 100;
+	int done_sending = 0;
 	vector<int> bits_principal(cant_bits, 0);
+	vector< vector<int> > matrizP;
+	llenarMatriz(matrizP,cant_bits,cant_bits,0);
 	bits_principal[cant_bits / 2] = 1;
 	queue< vector<int> > cola;
 
-	/**
-	 * Definir la segunda matriz
-	 */
+	limpiarArchivo("sim1D.txt"), limpiarArchivo("sim2D.txt");
 
-	#pragma omp parallel num_threads(num_hilos) shared(cola, num_hilos, cant_bits, tam_auto, cant_iter, bits_principal)
+	/*
+	-FALTA INGRESAR DATOS POR CONSOLA
+	-FALTA TERMINAR LA VERIFICACION DE RECIBIR DE LA COLA DE SIM2D
+	POR MEDIO DE DONE_SENDING Y TRY_RECEIVE(?)
+	*/
+
+	#pragma omp parallel num_threads(cant_hilos) shared(cola, cant_hilos, cant_bits, tam_auto, cant_iter, bits_principal, done_sending, matrizP)
 	{
 		int thread_id = omp_get_thread_num();
-		//If soy productor 1D
-		sim1D(bits_principal, cola, thread_id, cant_bits, num_hilos, cant_iter);
-		
-		//If soy productor 2D
+		if(thread_id < cant_hilos/2){
+			sim1D(bits_principal, cola, thread_id, cant_bits, cant_hilos/2, cant_iter);
+			done_sending = cola.size();
+		}
+		//else{
+		//
+//		}
+
+		//If thread_id % 2 != 0 / "master" = hilo 1
 	}
 	escribirArchivo("sim1D.txt",colaToString(cola));
 	// while(!cola.empty()){
@@ -129,7 +144,7 @@ void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, 
 	int lim_sup = (hilo + 1) * bitsXhilo;
 
 	//print("Para el hilo " + to_string(hilo) + " == [" + to_string(lim_inf) + "," + to_string(lim_sup) + "]");
-	#pragma omp barrier
+	
 	for(int i = 0; i < cant_Iter; i++){
 		vector<int> bits_codificados;
 		for(int j = lim_inf; j < lim_sup; j++){
@@ -152,9 +167,9 @@ void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, 
 			bits_principal[i] = bits_codificados[cont];
 			cont++;
 		}
-		#pragma omp barrier
-		#pragma omp master
-		cola.push(bits_principal);
+		if(hilo == 0){
+			cola.push(bits_principal);
+		}
 	}
 }
 
@@ -179,54 +194,86 @@ FUNCION:
 ENTRADA:
 SALIDA:
 */
-void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter){
+void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter, int & done_sending){
 	int cantColumnas = cant_bits / cant_hilos;
 	int limite_inf = hilo * cantColumnas;
 	int limite_sup = (hilo + 1) * cantColumnas;
 	int cantidad_estados_1D = 0;
-	bool colaVacia = cola.empty();
 	int iter_realizadas = 0;
-	vector<int> fila0;
-	vector< vector<int> > matriz_l; 
-	for(int f = 0; f < cant_bits; f++){
-		for(int c = limite_inf; c < limite_sup; c++){
-			if(matrizP[f][c] == 1){
-				if(cuentaVecinos(matrizP, cant_bits,f,c) < 2 || cuentaVecinos(matrizP, cant_bits, f, c) > 3){
-					matriz_l[f][c - limite_inf] = 0;
+	bool colaVacia = cola.empty();
+	
+
+	if(hilo == 1){
+		bool sigue = true;
+		while(sigue){
+			if(!cola.empty()){
+				matrizP[0] = cola.front();
+				cola.pop();
+				sigue = false;
+			}
+		}
+		cantidad_estados_1D++;
+	}
+	while((iter_realizadas < cant_Iter) || (done_sending > 0) || (cantidad_estados_1D < cant_Iter)){
+		vector< vector<int> > matriz_l;
+		llenarMatriz(matriz_l,cant_bits,limite_sup-limite_inf,0);
+		for(int f = 0; f < cant_bits; f++){
+			for(int c = limite_inf; c < limite_sup; c++){
+				if(matrizP[f][c] == 1){
+					if(cuentaVecinos(matrizP, cant_bits,f,c) < 2 || cuentaVecinos(matrizP, cant_bits, f, c) > 3){
+						matriz_l[f][c - limite_inf] = 0;
+					}
+					else{
+						matriz_l[f][c - limite_inf] = 1;
+					}
 				}
-				else{
+				else if(matrizP[f][c] == 0 && cuentaVecinos(matrizP,cant_bits, f, c) == 3){
 					matriz_l[f][c - limite_inf] = 1;
 				}
 			}
-			else if(matrizP[f][c] == 0 && cuentaVecinos(matrizP,cant_bits, f, c) == 3){
-				matriz_l[f][c - limite_inf] = 1;
+		}
+
+		//Intento de Reduce y append
+		for(int f = 0; f < cant_bits; f++){
+			int col = 0;
+			for(int c = limite_inf; c < limite_sup; c++){
+				matrizP[f][c] = matriz_l[f][col];
+				col++;
 			}
 		}
-	}
-
-	//Intento de Reduce y append
-	for(int f = 0; f < cant_bits; f++){
-		int col = 0;
-		for(int c = limite_inf; c < limite_sup; c++){
-			matrizP[f][c] = matriz_l[f][col];
-			col++;
+		if(hilo == 1){
+			escribirArchivo("sim2D.txt",matrizToString(matrizP));
 		}
+		#pragma omp barrier
+		//FALTA VERIFICAR SI LA COLA TIENE ELEMENTOS A TRAVES
+		//DE DONE SENDING. SI YA NO HAY ELEMENTOS EN LA COLA (DONE SENDING == 0)
+		//ENTONCES SE ACABA Y BUENAS NOCHES
 	}
-
-	#pragma omp barrier
+	
 
 }
 
 /*
 FUNCION: Escribe, en una archivo de texto del nombre deseado, la hilera correspondiente.
-ENTRADA: El nombre del archivo de texto deseado. Si el nombre archivo de texto ya existe, escribe encima de este. Tambien, recibe
-la hilera que se desea escribir en tal archivo.
+ENTRADA: El nombre del archivo de texto deseado. Si el nombre archivo de texto ya existe, continua escribiendo
+en este. Tambien, recibe la hilera que se desea escribir en tal archivo.
 SALIDA: -
 */
 void escribirArchivo(string nombre_archivo, string hilera){
 	ofstream escritor;
-	escritor.open(nombre_archivo);
-	escritor << hilera << "\n";
+	escritor.open(nombre_archivo,ios_base::app);
+	escritor << hilera << "\n\n";
+	escritor.close();
+}
+
+/*
+FUNCION: Limpia un archivo de texto correspondiende
+ENTRADA: El nombre del archivo de texto deseado.
+SALIDA: -
+*/
+void limpiarArchivo(string nombre_archivo){
+	ofstream escritor;
+	escritor.open(nombre_archivo,ofstream::trunc);
 	escritor.close();
 }
 
@@ -257,4 +304,42 @@ string colaToString(queue< vector < int> > & cola){
 		copiaCola.pop();
 	}
 	return hilera;
+}
+
+/*
+FUNCION: Transforma una matriz y sus elementos a un string
+ENTRADA: La matriz que desea transformar
+SALIDA: El string que representa los elementos de la matriz
+*/
+
+string matrizToString(vector < vector <int> > & matriz){
+	string hilera = "";
+	for(int i = 0; i < matriz.size(); i++){
+		hilera += vectorToString(matriz[i]) + "\n";
+	}
+	return hilera;
+}
+
+/*
+FUNCION:
+ENTRADA: 
+SALIDA: 
+*/
+// vector<int> & recibirCola(queue< vector < int> > & cola, int done_sending){
+// 	bool elementoRecibido = false;
+	
+// }
+
+/*
+FUNCION: Llena una matriz de filas y columnas con el elemento deseado
+ENTRADA: Cantidad de filas y columnas de la matriz y el elemento con el que 
+desea llenar la matriz
+SALIDA: La matriz generada y llena del elemento deseado
+*/
+vector< vector <int> > & llenarMatriz(vector< vector<int> > & matriz, int filas, int columnas, int dato){
+	for(int i = 0; i < filas; i++){
+		vector<int> fila(columnas,dato);
+		matriz.push_back(fila);
+	}
+	return matriz;
 }
