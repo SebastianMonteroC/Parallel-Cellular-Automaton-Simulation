@@ -26,7 +26,7 @@ template<typename T>string vectorToString(vector<T> & arreglo);
 int regla30(string secuencia);
 void sim1D(vector<int> & bits_principal,queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter);
 int cuentaVecinos(vector<vector <int>>& matrizPrincipal, int tam_Automatas, int fil, int col);
-void sim2d(queue <vector<int>> & cola, int hilo, int cant_hilos, int tam_Automatas, int cant_Iter);
+void sim2d(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter);
 void escribirArchivo(string nombre_archivo, string hilera);
 string colaToString(queue < vector <int> > & cola);
 
@@ -50,19 +50,24 @@ SALIDA:
 */
 int main() {
 	int num_hilos = 4;
-	int cant_bits = 70;
+	int cant_bits = 1000;
 	int tam_auto = 2;
-	int cant_iter = 30;
+	int cant_iter = 1000;
 	vector<int> bits_principal(cant_bits, 0);
 	bits_principal[cant_bits / 2] = 1;
 	queue< vector<int> > cola;
 
+	/**
+	 * Definir la segunda matriz
+	 */
+
 	#pragma omp parallel num_threads(num_hilos) shared(cola, num_hilos, cant_bits, tam_auto, cant_iter, bits_principal)
 	{
 		int thread_id = omp_get_thread_num();
-		
+		//If soy productor 1D
 		sim1D(bits_principal, cola, thread_id, cant_bits, num_hilos, cant_iter);
 		
+		//If soy productor 2D
 	}
 	escribirArchivo("sim1D.txt",colaToString(cola));
 	// while(!cola.empty()){
@@ -131,9 +136,11 @@ void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, 
 			string secuencia = "";
 			if(j == 0){
 				secuencia = to_string(bits_principal[cant_bits - 1]) + to_string(bits_principal[0]) + to_string(bits_principal[1]);
-			}else if (j == cant_bits - 1){
+			}
+			else if (j == cant_bits - 1){
 				secuencia = to_string(bits_principal[cant_bits - 2]) + to_string(bits_principal[cant_bits -1]) + to_string(bits_principal[0]);
-			}else{
+			}
+			else{
 				secuencia = to_string(bits_principal[j - 1]) + to_string(bits_principal[j]) + to_string(bits_principal[j+1]);
 			}
 			bits_codificados.push_back(regla30(secuencia));
@@ -172,15 +179,42 @@ FUNCION:
 ENTRADA:
 SALIDA:
 */
-void sim2D(queue <vector<int>> & cola, int hilo, int cant_hilos, int tam_Automatas, int cant_Iter){
-	int cantColumnas = tam_Automatas / cant_hilos;
+void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter){
+	int cantColumnas = cant_bits / cant_hilos;
 	int limite_inf = hilo * cantColumnas;
 	int limite_sup = (hilo + 1) * cantColumnas;
-	vector<vector <int>> matriz;
 	int cantidad_estados_1D = 0;
 	bool colaVacia = cola.empty();
 	int iter_realizadas = 0;
 	vector<int> fila0;
+	vector< vector<int> > matriz_l; 
+	for(int f = 0; f < cant_bits; f++){
+		for(int c = limite_inf; c < limite_sup; c++){
+			if(matrizP[f][c] == 1){
+				if(cuentaVecinos(matrizP, cant_bits,f,c) < 2 || cuentaVecinos(matrizP, cant_bits, f, c) > 3){
+					matriz_l[f][c - limite_inf] = 0;
+				}
+				else{
+					matriz_l[f][c - limite_inf] = 1;
+				}
+			}
+			else if(matrizP[f][c] == 0 && cuentaVecinos(matrizP,cant_bits, f, c) == 3){
+				matriz_l[f][c - limite_inf] = 1;
+			}
+		}
+	}
+
+	//Intento de Reduce y append
+	for(int f = 0; f < cant_bits; f++){
+		int col = 0;
+		for(int c = limite_inf; c < limite_sup; c++){
+			matrizP[f][c] = matriz_l[f][col];
+			col++;
+		}
+	}
+
+	#pragma omp barrier
+
 }
 
 /*
