@@ -53,10 +53,10 @@ ENTRADA:
 SALIDA:
 */
 int main() {
-	int cant_hilos = 4;
-	int cant_bits = 10;
 	int tam_auto = 2;
-	int cant_iter = 5;
+	int cant_hilos = 8;
+	int cant_bits = 1000;
+	int cant_iter = 1000;
 	int done_sending = 0;
 	vector<int> bits_principal(cant_bits, 0);
 	vector< vector<int> > matrizP;
@@ -95,9 +95,7 @@ int main() {
 				} 
 			}
 		}
-		
 	}
-	// escribirArchivo("sim1D.txt",colaToString(cola));
 
 	return 0;
 }
@@ -181,7 +179,6 @@ void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, 
 		{
 			cola.push(bits_principal);
 			escribirArchivo("sim1D.txt", vectorToString(bits_principal));
-			print("Se acabó");
 		}
 		
 	}
@@ -234,9 +231,8 @@ void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo,
 		}
 		cantidad_estados_1D++;
 	}
-
-	#pragma omp barrier
 	while((iter_realizadas < cant_Iter) || (cantidad_estados_1D < cant_Iter) && (done_sending != cant_hilos)){
+		#pragma omp barrier
 		vector< vector<int> > matriz_l;
 		llenarMatriz(matriz_l,cant_bits,limite_sup-limite_inf,0);
 		for(int f = 0; f < cant_bits; f++){
@@ -263,28 +259,31 @@ void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo,
 				col++;
 			}
 		}
+		
+		//print("");
+		#pragma omp barrier
+	
+
 		#pragma omp master
 		{
 			escribirArchivo("sim2D.txt",matrizToString(matrizP));
 			iter_realizadas++;
 			bool final = false;
 			while(!final){
-
 				if(!cola.empty()){
 					matrizP[0] = cola.front();
-					cola.pop();
+					cola.pop();				
 					final = true;
 				}	
 
 				if(done_sending == cant_hilos){
 					final = true;
 				}
+				
 			}
 		}
-		#pragma omp barrier
+		
 	}
-	
-
 }
 
 /*
