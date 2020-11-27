@@ -24,12 +24,13 @@ void print(T datos){
 //Definición de las funciones
 int regla30(string secuencia);
 int cuentaVecinos(vector<vector <int>>& matrizPrincipal, int tam_Automatas, int fil, int col);
-void sim1D(vector<int> & bits_principal,queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter);
-void sim2d(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter, int & done_sending);
+void sim1D(vector<int> & bits_principal,queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter, int & done_sending);
+void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter, int & done_sending);
 void escribirArchivo(string nombre_archivo, string hilera);
 void limpiarArchivo(string nombre_archivo);
 string colaToString(queue < vector <int> > & cola);
 string matrizToString(vector < vector <int> > & matriz);
+bool vecinoValido(int tam, int f, int c);
 template<typename T>string vectorToString(vector<T> & arreglo);
 vector< vector <int> > & llenarMatriz(vector<vector <int>> & matriz, int filas, int columnas, int dato);
 
@@ -53,9 +54,9 @@ SALIDA:
 */
 int main() {
 	int cant_hilos = 4;
-	int cant_bits = 100;
+	int cant_bits = 10;
 	int tam_auto = 2;
-	int cant_iter = 100;
+	int cant_iter = 5;
 	int done_sending = 0;
 	vector<int> bits_principal(cant_bits, 0);
 	vector< vector<int> > matrizP;
@@ -71,24 +72,32 @@ int main() {
 	POR MEDIO DE DONE_SENDING Y TRY_RECEIVE(?)
 	*/
 
-	#pragma omp parallel num_threads(cant_hilos) shared(cola, cant_hilos, cant_bits, tam_auto, cant_iter, bits_principal, done_sending, matrizP)
+	#pragma omp parallel num_threads(2) shared(cola, cant_hilos, cant_bits, tam_auto, cant_iter, bits_principal, done_sending, matrizP)
 	{
-		int thread_id = omp_get_thread_num();
-		if(thread_id < cant_hilos/2){
-			sim1D(bits_principal, cola, thread_id, cant_bits, cant_hilos/2, cant_iter);
-			done_sending = cola.size();
-		}
-		//else{
-		//
-//		}
+		omp_set_nested(1);
+		#pragma omp sections
+		{
+			#pragma omp section
+			{
+				# pragma omp parallel num_threads(cant_hilos/2)
+				{
+					int thread_id = omp_get_thread_num();
+					sim1D(bits_principal, cola, thread_id, cant_bits, cant_hilos/2, cant_iter, done_sending);
+				} 
+			}
 
-		//If thread_id % 2 != 0 / "master" = hilo 1
+			#pragma omp section
+			{
+				# pragma omp parallel num_threads(cant_hilos/2)
+				{
+					int thread_id = omp_get_thread_num();
+					sim2D(matrizP,cola,thread_id,cant_hilos/2,cant_bits,cant_iter,done_sending);
+				} 
+			}
+		}
+		
 	}
-	escribirArchivo("sim1D.txt",colaToString(cola));
-	// while(!cola.empty()){
-	// 	imprimirVector(cola.front());
-	// 	cola.pop();
-	// }
+	// escribirArchivo("sim1D.txt",colaToString(cola));
 
 	return 0;
 }
@@ -137,14 +146,14 @@ y por ultimo la cantidad de iteraciones que se desean realizar (cant_iter)
 SALIDA: A pesar de no retornar nada (void), reduce los datos procesados por todos los hilos por medio del
 hilo maestro y prosede a empujar los resultados correspondientes en la cola.
 */
-void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter){
+void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter, int & done_sending){
 	
 	int bitsXhilo = cant_bits / cant_hilos;
 	int lim_inf = hilo * bitsXhilo;
 	int lim_sup = (hilo + 1) * bitsXhilo;
 
 	//print("Para el hilo " + to_string(hilo) + " == [" + to_string(lim_inf) + "," + to_string(lim_sup) + "]");
-	
+	#pragma omp barrier
 	for(int i = 0; i < cant_Iter; i++){
 		vector<int> bits_codificados;
 		for(int j = lim_inf; j < lim_sup; j++){
@@ -167,10 +176,17 @@ void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, 
 			bits_principal[i] = bits_codificados[cont];
 			cont++;
 		}
-		if(hilo == 0){
+		#pragma omp barrier
+		#pragma omp master
+		{
 			cola.push(bits_principal);
+			escribirArchivo("sim1D.txt", vectorToString(bits_principal));
+			print("Se acabó");
 		}
+		
 	}
+	#pragma omp critical
+	done_sending++;
 }
 
 /*
@@ -183,7 +199,10 @@ int cuentaVecinos(vector<vector <int>>& matrizPrincipal, int tam_Automatas, int 
 	int cantidadVecinos = 0;
 	for(int i = fil-1; i < fil+2; i++){
 		for(int j = col-1; j < col+2; j++){
-			cantidadVecinos += matrizPrincipal[i%tam_Automatas][j%tam_Automatas];
+			if(vecinoValido(tam_Automatas,i,j)){
+				cantidadVecinos += matrizPrincipal[i%tam_Automatas][j%tam_Automatas];
+			}
+			
 		}
 	}
 	return cantidadVecinos - matrizPrincipal[fil][col];
@@ -203,7 +222,8 @@ void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo,
 	bool colaVacia = cola.empty();
 	
 
-	if(hilo == 1){
+	#pragma omp master
+	{
 		bool sigue = true;
 		while(sigue){
 			if(!cola.empty()){
@@ -214,7 +234,9 @@ void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo,
 		}
 		cantidad_estados_1D++;
 	}
-	while((iter_realizadas < cant_Iter) || (done_sending > 0) || (cantidad_estados_1D < cant_Iter)){
+
+	#pragma omp barrier
+	while((iter_realizadas < cant_Iter) || (cantidad_estados_1D < cant_Iter) && (done_sending != cant_hilos)){
 		vector< vector<int> > matriz_l;
 		llenarMatriz(matriz_l,cant_bits,limite_sup-limite_inf,0);
 		for(int f = 0; f < cant_bits; f++){
@@ -241,13 +263,25 @@ void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo,
 				col++;
 			}
 		}
-		if(hilo == 1){
+		#pragma omp master
+		{
 			escribirArchivo("sim2D.txt",matrizToString(matrizP));
+			iter_realizadas++;
+			bool final = false;
+			while(!final){
+
+				if(!cola.empty()){
+					matrizP[0] = cola.front();
+					cola.pop();
+					final = true;
+				}	
+
+				if(done_sending == cant_hilos){
+					final = true;
+				}
+			}
 		}
 		#pragma omp barrier
-		//FALTA VERIFICAR SI LA COLA TIENE ELEMENTOS A TRAVES
-		//DE DONE SENDING. SI YA NO HAY ELEMENTOS EN LA COLA (DONE SENDING == 0)
-		//ENTONCES SE ACABA Y BUENAS NOCHES
 	}
 	
 
@@ -262,7 +296,7 @@ SALIDA: -
 void escribirArchivo(string nombre_archivo, string hilera){
 	ofstream escritor;
 	escritor.open(nombre_archivo,ios_base::app);
-	escritor << hilera << "\n\n";
+	escritor << hilera << "\n";
 	escritor.close();
 }
 
@@ -342,4 +376,12 @@ vector< vector <int> > & llenarMatriz(vector< vector<int> > & matriz, int filas,
 		matriz.push_back(fila);
 	}
 	return matriz;
+}
+
+bool vecinoValido(int tam, int f, int c){
+	bool valido = true;
+	if(f < 0 || f >= tam || c < 0 || c >= tam){
+		valido = false;
+	}
+	return valido;
 }
