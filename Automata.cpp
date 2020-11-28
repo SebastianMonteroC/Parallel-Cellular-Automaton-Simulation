@@ -73,7 +73,7 @@ int main() {
 	-FALTA TERMINAR LA VERIFICACION DE RECIBIR DE LA COLA DE SIM2D
 	POR MEDIO DE DONE_SENDING Y TRY_RECEIVE(?)
 	*/
-
+	escribirArchivo("tiempo.txt", "TIEMPOS CALCULADOS CON I = " + to_string(cant_iter) + " Y CON N = " + to_string(cant_bits) + "\n--------------------------------------------\n");
 	#pragma omp parallel num_threads(2) shared(cola, cant_hilos, cant_bits, tam_auto, cant_iter, bits_principal, done_sending, matrizP)
 	{
 		omp_set_nested(1);
@@ -281,7 +281,7 @@ void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo,
 			if(iter_realizadas >= cant_Iter-10){
 				escribirArchivo("sim2D.txt",matrizToString(matrizP));
 			}
-			else if(iter_realizadas == 0){
+			if(iter_realizadas == 0){
 				registrarTiempo("Una iteracion de Conway tarda: ", tiempoIteracion);
 			}
 			iter_realizadas++;
