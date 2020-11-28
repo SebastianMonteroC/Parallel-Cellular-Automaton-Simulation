@@ -28,6 +28,7 @@ void sim1D(vector<int> & bits_principal,queue< vector<int> > & cola, int hilo, i
 void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter, int & done_sending);
 void escribirArchivo(string nombre_archivo, string hilera);
 void limpiarArchivo(string nombre_archivo);
+void registrarTiempo(string textoAEscribir, double tiempoInicial);
 string colaToString(queue < vector <int> > & cola);
 string matrizToString(vector < vector <int> > & matriz);
 bool vecinoValido(int tam, int f, int c);
@@ -53,10 +54,11 @@ ENTRADA:
 SALIDA:
 */
 int main() {
+	double wtime = omp_get_wtime();
 	int tam_auto = 2;
-	int cant_hilos = 8;
-	int cant_bits = 1000;
-	int cant_iter = 1000;
+	int cant_hilos = 4;
+	int cant_bits = 100;
+	int cant_iter = 100;
 	int done_sending = 0;
 	vector<int> bits_principal(cant_bits, 0);
 	vector< vector<int> > matrizP;
@@ -64,7 +66,7 @@ int main() {
 	bits_principal[cant_bits / 2] = 1;
 	queue< vector<int> > cola;
 
-	limpiarArchivo("sim1D.txt"), limpiarArchivo("sim2D.txt");
+	limpiarArchivo("sim1D.txt"), limpiarArchivo("sim2D.txt"), limpiarArchivo("tiempo.txt");
 
 	/*
 	-FALTA INGRESAR DATOS POR CONSOLA
@@ -83,6 +85,10 @@ int main() {
 				{
 					int thread_id = omp_get_thread_num();
 					sim1D(bits_principal, cola, thread_id, cant_bits, cant_hilos/2, cant_iter, done_sending);
+					#pragma omp master
+					{
+						registrarTiempo("La simulación de Regla 30 tardó: ", wtime);
+					}
 				} 
 			}
 
@@ -92,11 +98,15 @@ int main() {
 				{
 					int thread_id = omp_get_thread_num();
 					sim2D(matrizP,cola,thread_id,cant_hilos/2,cant_bits,cant_iter,done_sending);
+					#pragma omp master
+					{
+						registrarTiempo("La simulación de Conway tardó: ", wtime);
+					}
 				} 
 			}
 		}
 	}
-
+	registrarTiempo("Tiempo total: ", wtime);
 	return 0;
 }
 
@@ -211,6 +221,7 @@ ENTRADA:
 SALIDA:
 */
 void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter, int & done_sending){
+	double tiempoIteracion = omp_get_wtime();
 	int cantColumnas = cant_bits / cant_hilos;
 	int limite_inf = hilo * cantColumnas;
 	int limite_sup = (hilo + 1) * cantColumnas;
@@ -221,6 +232,7 @@ void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo,
 
 	#pragma omp master
 	{
+		
 		bool sigue = true;
 		while(sigue){
 			if(!cola.empty()){
@@ -266,7 +278,12 @@ void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo,
 
 		#pragma omp master
 		{
-			escribirArchivo("sim2D.txt",matrizToString(matrizP));
+			if(iter_realizadas >= cant_Iter-10){
+				escribirArchivo("sim2D.txt",matrizToString(matrizP));
+			}
+			else if(iter_realizadas == 0){
+				registrarTiempo("Una iteracion de Conway tarda: ", tiempoIteracion);
+			}
 			iter_realizadas++;
 			bool final = false;
 			while(!final){
@@ -279,7 +296,6 @@ void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo,
 				if(done_sending == cant_hilos){
 					final = true;
 				}
-				
 			}
 		}
 		
@@ -383,4 +399,8 @@ bool vecinoValido(int tam, int f, int c){
 		valido = false;
 	}
 	return valido;
+}
+
+void registrarTiempo(string textoAEscribir, double tiempoInicial){
+	escribirArchivo("tiempo.txt", textoAEscribir + to_string(omp_get_wtime() - tiempoInicial) + "\n");
 }
