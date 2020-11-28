@@ -56,9 +56,9 @@ SALIDA:
 int main() {
 	double wtime = omp_get_wtime();
 	int tam_auto = 2;
-	int cant_hilos = 8;
+	int cant_hilos = 16;
 	int cant_bits = 1000;
-	int cant_iter = 100;
+	int cant_iter = 10000;
 	int done_sending = 0;
 	string str_sim1D = "";
 	string str_sim2D = "";
