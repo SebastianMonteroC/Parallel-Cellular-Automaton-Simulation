@@ -24,8 +24,8 @@ void print(T datos){
 //Definición de las funciones
 int regla30(string secuencia);
 int cuentaVecinos(vector<vector <int>>& matrizPrincipal, int tam_Automatas, int fil, int col);
-void sim1D(vector<int> & bits_principal,queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter, int & done_sending);
-void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter, int & done_sending);
+void sim1D(vector<int> & bits_principal,queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter, int & done_sending, string & str_sim1D);
+void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter, int & done_sending, string & str_sim2D);
 void escribirArchivo(string nombre_archivo, string hilera);
 void limpiarArchivo(string nombre_archivo);
 void registrarTiempo(string textoAEscribir, double tiempoInicial);
@@ -56,10 +56,12 @@ SALIDA:
 int main() {
 	double wtime = omp_get_wtime();
 	int tam_auto = 2;
-	int cant_hilos = 4;
-	int cant_bits = 100;
+	int cant_hilos = 8;
+	int cant_bits = 1000;
 	int cant_iter = 100;
 	int done_sending = 0;
+	string str_sim1D = "";
+	string str_sim2D = "";
 	vector<int> bits_principal(cant_bits, 0);
 	vector< vector<int> > matrizP;
 	llenarMatriz(matrizP,cant_bits,cant_bits,0);
@@ -84,7 +86,7 @@ int main() {
 				# pragma omp parallel num_threads(cant_hilos/2)
 				{
 					int thread_id = omp_get_thread_num();
-					sim1D(bits_principal, cola, thread_id, cant_bits, cant_hilos/2, cant_iter, done_sending);
+					sim1D(bits_principal, cola, thread_id, cant_bits, cant_hilos/2, cant_iter, done_sending, str_sim1D);
 					#pragma omp master
 					{
 						registrarTiempo("La simulación de Regla 30 tardó: ", wtime);
@@ -97,7 +99,7 @@ int main() {
 				# pragma omp parallel num_threads(cant_hilos/2)
 				{
 					int thread_id = omp_get_thread_num();
-					sim2D(matrizP,cola,thread_id,cant_hilos/2,cant_bits,cant_iter,done_sending);
+					sim2D(matrizP,cola,thread_id,cant_hilos/2,cant_bits,cant_iter,done_sending, str_sim2D);
 					#pragma omp master
 					{
 						registrarTiempo("La simulación de Conway tardó: ", wtime);
@@ -107,6 +109,9 @@ int main() {
 		}
 	}
 	registrarTiempo("Tiempo total: ", wtime);
+
+	escribirArchivo("sim1d_nuevo.txt", str_sim1D);
+	escribirArchivo("sim2D_nuevo.txt", str_sim2D);
 	return 0;
 }
 
@@ -154,7 +159,7 @@ y por ultimo la cantidad de iteraciones que se desean realizar (cant_iter)
 SALIDA: A pesar de no retornar nada (void), reduce los datos procesados por todos los hilos por medio del
 hilo maestro y prosede a empujar los resultados correspondientes en la cola.
 */
-void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter, int & done_sending){
+void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, int cant_bits, int cant_hilos, int cant_Iter, int & done_sending, string & str_sim1D){
 	
 	int bitsXhilo = cant_bits / cant_hilos;
 	int lim_inf = hilo * bitsXhilo;
@@ -188,7 +193,8 @@ void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, 
 		#pragma omp master
 		{
 			cola.push(bits_principal);
-			escribirArchivo("sim1D.txt", vectorToString(bits_principal));
+			str_sim1D += vectorToString(bits_principal) + "\n";
+			//escribirArchivo("sim1D.txt", vectorToString(bits_principal));
 		}
 		
 	}
@@ -220,7 +226,7 @@ FUNCION:
 ENTRADA:
 SALIDA:
 */
-void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter, int & done_sending){
+void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter, int & done_sending, string & str_sim2D){
 	double tiempoIteracion = omp_get_wtime();
 	int cantColumnas = cant_bits / cant_hilos;
 	int limite_inf = hilo * cantColumnas;
@@ -279,7 +285,8 @@ void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo,
 		#pragma omp master
 		{
 			if(iter_realizadas >= cant_Iter-10){
-				escribirArchivo("sim2D.txt",matrizToString(matrizP));
+				//escribirArchivo("sim2D.txt",matrizToString(matrizP));
+				str_sim2D += matrizToString(matrizP) + "\n";
 			}
 			if(iter_realizadas == 0){
 				registrarTiempo("Una iteracion de Conway tarda: ", tiempoIteracion);
