@@ -11,15 +11,10 @@ PROFESOR: ALAN CALDERON CASTRO
 #include <vector>
 #include <queue>
 #include <fstream>
+#include <assert.h>
 using namespace std;
 
 
-bool validaCntHilos(int ch);
-
-template<typename T>
-void print(T datos){
-	cout << datos << endl;
-}
 
 //Definición de las funciones
 int regla30(string secuencia);
@@ -29,29 +24,22 @@ void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo,
 void escribirArchivo(string nombre_archivo, string hilera);
 void limpiarArchivo(string nombre_archivo);
 void registrarTiempo(string textoAEscribir, double tiempoInicial);
+bool vecinoValido(int tam, int f, int c);
 string colaToString(queue < vector <int> > & cola);
 string matrizToString(vector < vector <int> > & matriz);
-bool vecinoValido(int tam, int f, int c);
 template<typename T>string vectorToString(vector<T> & arreglo);
+template<typename T>void print(T datos);
 vector< vector <int> > & llenarMatriz(vector<vector <int>> & matriz, int filas, int columnas, int dato);
 
 
-/*
-FUNCION: Imprime los elementos de un vector en secuencia
-ENTRADA: El vector <T> por recorrer para imprimir los datos en pantalla
-SALIDA: Los datos del vector en orden
-*/
-template<typename T> void imprimirVector(vector<T> vector){
-	for(int i = 0; i < vector.size(); i++){
-		cout << vector[i] << " ";
-	}
-	cout << endl;
-}
 
 /*
-FUNCION:
-ENTRADA:
-SALIDA:
+FUNCION: Main del programa. Se encarga de realizar la paralelizacion por medio de los hilos y de repartir
+las tareas correspondientes a cada hilo. Recibe los datos por consola en forma de argumentos y los utiliza
+para procesar SIM1D(El automata de regla 30) y el SIM2D(El automata de Conway). Llama los metodos necesarios
+la ejecucion apropiada del programa.
+ENTRADA: Los argumentos por consola de cantidad de hilos, bits e iteraciones.
+SALIDA: -
 */
 int main(int argc, char* argv[]) {
 	//argv[1] = cant_hilos ; argv[2] = cant_bits ; argv[3] = cant_iter;
@@ -69,12 +57,6 @@ int main(int argc, char* argv[]) {
 	queue< vector<int> > cola;
 
 	limpiarArchivo("sim1D.txt"), limpiarArchivo("sim2D.txt"), limpiarArchivo("tiempo.txt");
-
-	/*
-	-FALTA INGRESAR DATOS POR CONSOLA
-	-FALTA TERMINAR LA VERIFICACION DE RECIBIR DE LA COLA DE SIM2D
-	POR MEDIO DE DONE_SENDING Y TRY_RECEIVE(?)
-	*/
 	escribirArchivo("tiempo.txt", "TIEMPOS CALCULADOS CON I = " + to_string(cant_iter) + " Y CON N = " + to_string(cant_bits) + "\n--------------------------------------------\n");
 	#pragma omp parallel num_threads(2) shared(cola, cant_hilos, cant_bits, cant_iter, bits_principal, done_sending, matrizP)
 	{
@@ -113,15 +95,6 @@ int main(int argc, char* argv[]) {
 	escribirArchivo("sim1D.txt", str_sim1D);
 	escribirArchivo("sim2D.txt", str_sim2D);
 	return 0;
-}
-
-/*
-FUNCION: Verifica que la cantidad de hilos sea mayor que 1
-ENTRADA: Cantidad de hilos
-SALIDA: Si la cantidad de hilos es mayor que 1
-*/
-bool validaCntHilos(int ch) {
-	return ch >= 1;
 }
 
 /*
@@ -164,8 +137,6 @@ void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, 
 	int bitsXhilo = cant_bits / cant_hilos;
 	int lim_inf = hilo * bitsXhilo;
 	int lim_sup = (hilo + 1) * bitsXhilo;
-
-	//print("Para el hilo " + to_string(hilo) + " == [" + to_string(lim_inf) + "," + to_string(lim_sup) + "]");
 	#pragma omp barrier
 	for(int i = 0; i < cant_Iter; i++){
 		vector<int> bits_codificados;
@@ -181,9 +152,7 @@ void sim1D(vector<int> & bits_principal, queue< vector<int> > & cola, int hilo, 
 				secuencia = to_string(bits_principal[j - 1]) + to_string(bits_principal[j]) + to_string(bits_principal[j+1]);
 			}
 			bits_codificados.push_back(regla30(secuencia));
-			//print("Para la iteracion " + to_string(j) + " se tiene la secuencia " + secuencia + " = " + to_string(regla30(secuencia)));
 		}
-		//imprimirVector(bits_codificados);
 		int cont = 0;
 		for(int i = lim_inf; cont < bits_codificados.size(); i++){
 			bits_principal[i] = bits_codificados[cont];
@@ -222,9 +191,13 @@ int cuentaVecinos(vector<vector <int>>& matrizPrincipal, int tam_Automatas, int 
 }
 
 /*
-FUNCION: 
-ENTRADA:
-SALIDA:
+FUNCION: Automata de Conway. Este es un automata celular de dos dimensiones que trabaja en una matriz y es autodependiente. Esto
+significa que depende solo de su estado inicial. Con cada iteracion avanza el automata y va generando nuevas "formas de vida" en la matriz.
+ENTRADA: La matriz en la que se escribira el automata, la cola que contiene los productos del automata de Regla 30 para constantemente
+alimentar la simulacion, el id del hilo que esta trabajando, la cantidad de hilos del programa, la cantidad de bits por procesar, la
+cantidad de iteraciones por realizar y una referencia a un numero entero done_sending que se utiliza como auxiliar para verificar si
+ya no hay mas elementos que esperar en la cola.
+SALIDA: El automata de Conway completo en un archivo de texto
 */
 void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo, int cant_hilos, int cant_bits, int cant_Iter, int & done_sending, string & str_sim2D){
 	double tiempoIteracion = omp_get_wtime();
@@ -269,7 +242,7 @@ void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo,
 			}
 		}
 
-		//Intento de Reduce y append
+		//Reduce y append a la matriz
 		for(int f = 0; f < cant_bits; f++){
 			int col = 0;
 			for(int c = limite_inf; c < limite_sup; c++){
@@ -278,14 +251,10 @@ void sim2D(vector< vector<int> > &matrizP, queue <vector<int>> & cola, int hilo,
 			}
 		}
 		
-		//print("");
 		#pragma omp barrier
-	
-
 		#pragma omp master
 		{
 			if(iter_realizadas >= cant_Iter-10){
-				//escribirArchivo("sim2D.txt",matrizToString(matrizP));
 				str_sim2D += matrizToString(matrizP) + "\n";
 			}
 			if(iter_realizadas == 0){
@@ -377,16 +346,6 @@ string matrizToString(vector < vector <int> > & matriz){
 }
 
 /*
-FUNCION:
-ENTRADA: 
-SALIDA: 
-*/
-// vector<int> & recibirCola(queue< vector < int> > & cola, int done_sending){
-// 	bool elementoRecibido = false;
-	
-// }
-
-/*
 FUNCION: Llena una matriz de filas y columnas con el elemento deseado
 ENTRADA: Cantidad de filas y columnas de la matriz y el elemento con el que 
 desea llenar la matriz
@@ -400,6 +359,11 @@ vector< vector <int> > & llenarMatriz(vector< vector<int> > & matriz, int filas,
 	return matriz;
 }
 
+/*
+FUNCION: Verifica si una casilla en una matriz es valida (por ejemplo, matriz[-1][1] retornaria false)
+ENTRADA: El largo de la matriz (se asume que es cuadrada), la fila y la columna de la casilla a analizar
+SALIDA: Si la casilla analizada se encuentra dentro de la matriz o no
+*/
 bool vecinoValido(int tam, int f, int c){
 	bool valido = true;
 	if(f < 0 || f >= tam || c < 0 || c >= tam){
@@ -408,6 +372,44 @@ bool vecinoValido(int tam, int f, int c){
 	return valido;
 }
 
+/*
+FUNCION: Escribe en un archivo de texto los tiempos correspondientes registrados.
+ENTRADA: El texto que desea registrar (el tiempo) y el tiempo inicial para calcularlo.
+SALIDA: -
+*/
 void registrarTiempo(string textoAEscribir, double tiempoInicial){
 	escribirArchivo("tiempo.txt", textoAEscribir + to_string(omp_get_wtime() - tiempoInicial) + "\n");
+}
+
+
+/*
+FUNCION: Valida que la cantidad de hilos sea mayor o igual a 2 y sea una cantidad par
+ENTRADA: Cantidad de hilos
+SALIDA: Retorna verdadero si la cantidad es valida y si no, el programa acaba
+*/
+bool validaCntHilos(int ch){
+	assert(ch >= 2 && ch%2 == 0);
+	return true;
+}
+
+/*
+FUNCION: Imprimir datos
+ENTRADA: Cualquier tipo de dato T (enplantillado)
+SALIDA: El dato en pantalla
+*/
+template<typename T>
+void print(T datos){
+	cout << datos << endl;
+}
+
+/*
+FUNCION: Imprime los elementos de un vector en secuencia
+ENTRADA: El vector <T> por recorrer para imprimir los datos en pantalla
+SALIDA: Los datos del vector en orden
+*/
+template<typename T> void imprimirVector(vector<T> vector){
+	for(int i = 0; i < vector.size(); i++){
+		cout << vector[i] << " ";
+	}
+	cout << endl;
 }
