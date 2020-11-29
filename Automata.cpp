@@ -53,12 +53,12 @@ FUNCION:
 ENTRADA:
 SALIDA:
 */
-int main() {
+int main(int argc, char* argv[]) {
+	//argv[1] = cant_hilos ; argv[2] = cant_bits ; argv[3] = cant_iter;
 	double wtime = omp_get_wtime();
-	int tam_auto = 2;
-	int cant_hilos = 16;
-	int cant_bits = 1000;
-	int cant_iter = 10000;
+	int cant_hilos = stoi(argv[1]);
+	int cant_bits = stoi(argv[2]);
+	int cant_iter = stoi(argv[3]);
 	int done_sending = 0;
 	string str_sim1D = "";
 	string str_sim2D = "";
@@ -76,7 +76,7 @@ int main() {
 	POR MEDIO DE DONE_SENDING Y TRY_RECEIVE(?)
 	*/
 	escribirArchivo("tiempo.txt", "TIEMPOS CALCULADOS CON I = " + to_string(cant_iter) + " Y CON N = " + to_string(cant_bits) + "\n--------------------------------------------\n");
-	#pragma omp parallel num_threads(2) shared(cola, cant_hilos, cant_bits, tam_auto, cant_iter, bits_principal, done_sending, matrizP)
+	#pragma omp parallel num_threads(2) shared(cola, cant_hilos, cant_bits, cant_iter, bits_principal, done_sending, matrizP)
 	{
 		omp_set_nested(1);
 		#pragma omp sections
@@ -110,8 +110,8 @@ int main() {
 	}
 	registrarTiempo("Tiempo total: ", wtime);
 
-	escribirArchivo("sim1d_nuevo.txt", str_sim1D);
-	escribirArchivo("sim2D_nuevo.txt", str_sim2D);
+	escribirArchivo("sim1D.txt", str_sim1D);
+	escribirArchivo("sim2D.txt", str_sim2D);
 	return 0;
 }
 
